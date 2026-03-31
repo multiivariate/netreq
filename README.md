@@ -130,6 +130,29 @@ Default sensitive fields:
 - Headers: `authorization`, `x-api-key`, `cookie`, `x-auth-token`
 - Body keys: `password`, `secret`, `token`, `key`, `apikey`, `credential`
 
+## Ecosystem
+
+### @netreq/auth
+
+JWT authentication plugin with auto-refresh and storage adapters.
+
+```bash
+npm install @netreq/auth
+```
+
+```typescript
+import { Auth, WebStorage } from '@netreq/auth';
+
+const auth = new Auth({
+  storage: new WebStorage('localStorage'),
+  refreshEndpoint: '/api/auth/refresh'
+});
+
+client.use(auth.middleware());
+```
+
+See [`@netreq/auth`](./packages/auth) for full docs.
+
 ## License
 
 MIT

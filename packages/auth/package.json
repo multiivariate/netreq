@@ -1,6 +1,6 @@
 {
   "name": "netreq-auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Authentication plugin for netreq. JWT token management with automatic refresh and storage adapters.",
   "type": "module",
   "main": "./dist/index.js",

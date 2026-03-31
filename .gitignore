@@ -1,1 +1,8 @@
 **/node_modules
+**/*.map
+**/dist
+**/*.tgz
+.DS_Store
+*.log
+.env
+.env.local

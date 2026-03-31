@@ -1,6 +1,6 @@
 {
   "name": "netreq",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A lightweight, secure HTTP client with zero dependencies. Built on native fetch API.",
   "type": "module",
   "main": "./dist/index.js",

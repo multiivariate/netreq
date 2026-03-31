@@ -1,0 +1,51 @@
+{
+  "name": "@netreq/auth",
+  "version": "0.1.0",
+  "description": "Authentication plugin for netreq. JWT token management with automatic refresh and storage adapters.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "netreq",
+    "auth",
+    "jwt",
+    "authentication",
+    "http",
+    "client",
+    "token",
+    "refresh",
+    "interceptor",
+    "typescript",
+    "zero-dependency"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "netreq": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "netreq": "file:../.."
+  }
+}

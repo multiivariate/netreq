@@ -87,6 +87,30 @@ interface LogEntry {
 }
 
 /**
+ * Middleware function type for request/response interceptors.
+ */
+interface Middleware {
+  /**
+   * Interceptor called before each request.
+   * Can modify request config or return a new one.
+   */
+  onRequest?: (config: RequestConfig) => Promise<RequestConfig> | RequestConfig;
+  
+  /**
+   * Interceptor called after each successful response.
+   * Can modify response or handle special cases (like 401 refresh).
+   */
+  onResponse?: <T>(response: ClientResponse<T>, requestConfig: RequestConfig) => 
+    Promise<ClientResponse<T>> | ClientResponse<T>;
+  
+  /**
+   * Interceptor called when a request fails.
+   * Can handle errors or transform them.
+   */
+  onError?: (error: Error) => Promise<Error> | Error;
+}
+
+/**
  * Default sensitive header names (case-insensitive).
  * @internal
  */
@@ -209,6 +233,7 @@ function sanitizeBody(
  */
 export class Client {
   private readonly config: Required<ClientConfig>;
+  private middlewares: Middleware[] = [];
 
   /**
    * Creates a new HTTP Client instance.
@@ -225,6 +250,51 @@ export class Client {
         replacement: config.sanitize?.replacement ?? '***REDACTED***',
       },
     };
+  }
+
+  /**
+   * Adds a middleware to the client.
+   * Middlewares are executed in the order they were added.
+   * 
+   * @param middleware - Middleware to add
+   * @returns The client instance for chaining
+   * 
+   * @example
+   * ```typescript
+   * import { AuthPlugin } from '@netreq/auth';
+   * 
+   * const authPlugin = new AuthPlugin({
+   *   refreshEndpoint: '/auth/refresh',
+   *   storage: new WebStorage('localStorage')
+   * });
+   * 
+   * client.use(authPlugin.middleware());
+   * ```
+   */
+  use(middleware: Middleware): this {
+    this.middlewares.push(middleware);
+    return this;
+  }
+
+  /**
+   * Removes a middleware from the client.
+   * @param middleware - Middleware to remove
+   * @returns True if middleware was found and removed
+   */
+  remove(middleware: Middleware): boolean {
+    const index = this.middlewares.indexOf(middleware);
+    if (index > -1) {
+      this.middlewares.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clears all middlewares from the client.
+   */
+  clearMiddlewares(): void {
+    this.middlewares = [];
   }
 
   /**
@@ -257,6 +327,57 @@ export class Client {
   }
 
   /**
+   * Executes request middlewares in sequence.
+   * @internal
+   */
+  private async executeRequestMiddlewares(config: RequestConfig): Promise<RequestConfig> {
+    let currentConfig = config;
+    
+    for (const middleware of this.middlewares) {
+      if (middleware.onRequest) {
+        currentConfig = await middleware.onRequest(currentConfig);
+      }
+    }
+    
+    return currentConfig;
+  }
+
+  /**
+   * Executes response middlewares in sequence.
+   * @internal
+   */
+  private async executeResponseMiddlewares<T>(
+    response: ClientResponse<T>, 
+    requestConfig: RequestConfig
+  ): Promise<ClientResponse<T>> {
+    let currentResponse = response;
+    
+    for (const middleware of this.middlewares) {
+      if (middleware.onResponse) {
+        currentResponse = await middleware.onResponse(currentResponse, requestConfig);
+      }
+    }
+    
+    return currentResponse;
+  }
+
+  /**
+   * Executes error middlewares in sequence.
+   * @internal
+   */
+  private async executeErrorMiddlewares(error: Error): Promise<Error> {
+    let currentError = error;
+    
+    for (const middleware of this.middlewares) {
+      if (middleware.onError) {
+        currentError = await middleware.onError(currentError);
+      }
+    }
+    
+    return currentError;
+  }
+
+  /**
    * Makes an HTTP request with the configured settings.
    * Automatically sanitizes sensitive data in any logged information.
    * 
@@ -265,25 +386,28 @@ export class Client {
    * @throws Error if request fails or times out
    */
   async request<T = unknown>(requestConfig: RequestConfig): Promise<ClientResponse<T>> {
-    const url = `${this.config.baseUrl}${requestConfig.path}`;
-    const method = requestConfig.method ?? 'GET';
-    const timeout = requestConfig.timeout ?? this.config.timeout;
+    // Execute request middlewares
+    const config = await this.executeRequestMiddlewares(requestConfig);
+    
+    const url = `${this.config.baseUrl}${config.path}`;
+    const method = config.method ?? 'GET';
+    const timeout = config.timeout ?? this.config.timeout;
 
     // Merge headers
     const headers: Record<string, string> = {
       ...this.config.defaultHeaders,
-      ...requestConfig.headers,
+      ...config.headers,
     };
 
     // Prepare body
     let body: RequestBodyInit | undefined;
-    if (requestConfig.body !== null && requestConfig.body !== undefined) {
-      if (typeof requestConfig.body === 'string') {
-        body = requestConfig.body;
-      } else if (requestConfig.body instanceof FormData || requestConfig.body instanceof URLSearchParams) {
-        body = requestConfig.body;
+    if (config.body !== null && config.body !== undefined) {
+      if (typeof config.body === 'string') {
+        body = config.body;
+      } else if (config.body instanceof FormData || config.body instanceof URLSearchParams) {
+        body = config.body;
       } else {
-        body = JSON.stringify(requestConfig.body);
+        body = JSON.stringify(config.body);
         if (!headers['Content-Type'] && !headers['content-type']) {
           headers['Content-Type'] = 'application/json';
         }
@@ -328,13 +452,18 @@ export class Client {
         url: response.url,
       };
 
-      return result;
+      // Execute response middlewares
+      return await this.executeResponseMiddlewares(result, config);
     } catch (error) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
+      const processedError = await this.executeErrorMiddlewares(
+        error instanceof Error ? error : new Error(String(error))
+      );
+      
+      if (processedError instanceof Error) {
+        if (processedError.name === 'AbortError') {
           throw new Error(`Request timeout after ${timeout}ms: ${url}`);
         }
-        throw new Error(`Request failed: ${error.message}`);
+        throw processedError;
       }
 
       throw new Error(`Request failed: ${String(error)}`);
@@ -446,4 +575,5 @@ export type {
   SanitizeConfig,
   HttpMethod,
   RequestBody,
+  Middleware,
 };

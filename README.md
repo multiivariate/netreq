@@ -2,6 +2,8 @@
 
 Lightweight HTTP client for Node.js 18+. Zero dependencies, built on native fetch.
 
+📚 **[Complete Documentation](DETAILED_DOCS.md)** - Full API reference, examples, and guides
+
 ## Why
 
 - **Small**: No dependencies. Uses built-in fetch.
